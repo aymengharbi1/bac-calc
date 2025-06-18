@@ -15,9 +15,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-light: #f7fafc; --text-light: #1f2937; --card-light: white; --border-light: #e2e8f0;
@@ -56,17 +57,51 @@
         footer { text-align: center; padding: 2rem; color: #6b7280; font-size: 0.9rem; }
         .dark footer { color: #9ca3af; }
         
+        #successOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(22, 163, 74, 0.8);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 100; opacity: 0; pointer-events: none;
+            transition: opacity 0.5s ease-in-out; overflow: hidden;
+        }
+        #successOverlay.visible { opacity: 1; pointer-events: auto; }
+        #successText {
+            font-size: 10vw; font-weight: 900; color: white; text-shadow: 0 0 20px rgba(0,0,0,0.5);
+            opacity: 0; transform: scale(0.5);
+        }
+        #successOverlay.visible #successText {
+             animation: success-anim 5s ease-in-out forwards;
+        }
+
+        .confetti {
+            position: absolute; width: 10px; height: 20px;
+            top: -50px; opacity: 0;
+        }
+         #successOverlay.visible .confetti {
+            animation: confetti-fall 5s linear forwards;
+        }
+
+        @keyframes success-anim {
+            0% { transform: scale(0.5); opacity: 0; }
+            20% { transform: scale(1.1); opacity: 1; }
+            30% { transform: scale(1); opacity: 1; }
+            80% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        @keyframes confetti-fall {
+            0% { transform: translateY(0vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(120vh) rotate(720deg); opacity: 0; }
+        }
+
         .participant-toast {
             animation: fadeInToast 0.5s ease-out, fadeOutToast 0.5s ease-in 4.5s forwards;
         }
-
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        
         @keyframes fadeInToast {
             from { opacity: 0; transform: translateX(100%); }
             to { opacity: 1; transform: translateX(0); }
         }
-
         @keyframes fadeOutToast {
             from { opacity: 1; transform: translateX(0); }
             to { opacity: 0; transform: translateX(100%); }
@@ -74,6 +109,10 @@
     </style>
 </head>
 <body>
+
+    <div id="successOverlay">
+        <h1 id="successText">ناجح!</h1>
+    </div>
 
     <div id="welcomePage" class="container mx-auto p-4 md:p-8 max-w-2xl">
         <div class="card p-6 md:p-8">
@@ -487,6 +526,7 @@
                 bgColor = 'bg-green-100 dark:bg-green-900/50'; textColor = 'text-green-800 dark:text-green-300'; borderColor = 'border-green-400 dark:border-green-700';
                 setupScoreCalculator();
                 scoreCard.style.display = 'block';
+                triggerSuccessAnimation();
             } else if (avg >= 7) { 
                 status = 'retake'; resultText = 'مؤجل للمراقبة'; bgColor = 'bg-orange-100 dark:bg-orange-900/50'; textColor = 'text-orange-800 dark:text-orange-300'; borderColor = 'border-orange-400 dark:border-orange-700';
                 retakeSessionCard.style.display = 'block';
@@ -542,6 +582,7 @@
                 finalBacAvg = avg; 
                 setupScoreCalculator();
                 scoreCard.style.display = 'block';
+                triggerSuccessAnimation();
             } else { 
                 status = 'fail_retake'; resultText = 'راسب بعد المراقبة'; bgColor = 'bg-red-100 dark:bg-red-900/50'; textColor = 'text-red-800 dark:text-red-300'; borderColor = 'border-red-400 dark:border-red-700'; 
                 scoreCard.style.display = 'none';
@@ -694,6 +735,34 @@
             resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         
+        function triggerSuccessAnimation() {
+            const overlay = document.getElementById('successOverlay');
+            overlay.classList.add('visible');
+
+            const oldConfettis = overlay.querySelectorAll('.confetti');
+            oldConfettis.forEach(c => c.remove());
+
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = `${Math.random() * 100}vw`;
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                confetti.style.animationDelay = `${Math.random() * 2}s`;
+                overlay.appendChild(confetti);
+            }
+
+            Tone.start();
+            const synth = new Tone.PolySynth().toDestination();
+            const now = Tone.now();
+            synth.triggerAttackRelease(["G3", "B3", "D4"], "4n", now);
+            synth.triggerAttackRelease(["A3", "C4", "E4"], "4n", now + 0.5);
+            synth.triggerAttackRelease(["B3", "D4", "F#4"], "2n", now + 1);
+
+            setTimeout(() => {
+                overlay.classList.remove('visible');
+            }, 5000);
+        }
+
         // --- LOCAL STORAGE FUNCTIONS ---
         function loadUserFromLocalStorage() {
             const user = JSON.parse(localStorage.getItem('bacUser'));
