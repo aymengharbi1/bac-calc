@@ -10,7 +10,7 @@
     <meta property="og:description" content="توقع نتيجتك في البكالوريا، اكتشف معدلك المطلوب، واحصل على نصائح للتوجيه الجامعي. تطبيق من تطوير أيمن الغربي." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://resultat-bac.netlify.app/" />
-    <meta property="og:image" content="https://i.imgur.com/image_placeholder.png" />
+    <meta property="og:image" content="https://i.imgur.com/vLzYVfA.png" />
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -23,6 +23,7 @@
             --bg-light: #f7fafc; --text-light: #1f2937; --card-light: white; --border-light: #e2e8f0;
             --bg-dark: #111827; --text-dark: #e5e7eb; --card-dark: #1f2937; --border-dark: #4b5563;
         }
+        html { scroll-behavior: smooth; }
         html.dark { color-scheme: dark; }
         body {
             font-family: 'Cairo', sans-serif; background-color: var(--bg-light); color: var(--text-light);
@@ -142,12 +143,12 @@
         </div>
         
         <div id="reverseCalculatorCard" class="card p-6 md:p-8 border-t-4 border-green-400">
-             <h2 class="text-2xl font-bold text-center mb-6 text-green-600 dark:text-green-400">🤔 حاسبة الهدف: كم يلزمني؟</h2>
+             <h2 class="text-2xl font-bold text-center mb-6 text-green-600 dark:text-green-400">🤔 حاسبة الهدف: قداش لازمني نجيب؟</h2>
              <div class="grid md:grid-cols-2 gap-6">
                  <div><label for="revAnnualAvg" class="block mb-2 font-semibold">1. معدلي السنوي</label><input type="number" id="revAnnualAvg" class="input-field" placeholder="13.50" min="0" max="20" step="0.01"></div>
-                 <div><label for="revTargetAvg" class="block mb-2 font-semibold">2. المعدل النهائي الذي أطمح له</label><input type="number" id="revTargetAvg" class="input-field" placeholder="15.00" min="0" max="20" step="0.01"></div>
+                 <div><label for="revTargetAvg" class="block mb-2 font-semibold">2. المعدل اللي نحب نوصلو</label><input type="number" id="revTargetAvg" class="input-field" placeholder="15.00" min="0" max="20" step="0.01"></div>
              </div>
-             <div class="mt-8 text-center"><button id="calculateReverse" class="btn btn-success w-full md:w-auto">احسب المعدل المطلوب</button></div>
+             <div class="mt-8 text-center"><button id="calculateReverse" class="btn btn-success w-full md:w-auto">شوف قداش لازمك</button></div>
              <div id="reverseResult" class="mt-6" style="display: none;"></div>
         </div>
 
@@ -159,6 +160,19 @@
             </div>
             <div class="mt-8 text-center"><button id="calculateMain" class="btn btn-primary w-full md:w-auto">احسب نتيجتي</button></div>
             <div id="mainResult" class="mt-6" style="display: none;"></div>
+        </div>
+
+        <div id="scoreCalculatorCard" class="card p-6 md:p-8" style="display:none;">
+            <h2 class="text-2xl font-bold text-center mb-6 text-green-600 dark:text-green-400">🚀 حاسبة السكور</h2>
+            <p class="text-center text-sm mb-6 text-gray-500 dark:text-gray-400">أدخل معدلاتك في المواد الأساسية لحساب السكور المتوقع لمختلف الشعب الجامعية.</p>
+            
+            <div id="scoreNotesForm" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            </div>
+            
+            <div class="mt-8 text-center">
+                <button id="calculateScoreBtn" class="btn btn-success">احسب السكور</button>
+            </div>
+            <div id="scoreResult" class="mt-6"></div>
         </div>
 
         <div id="retakeSessionCard" class="card p-6 md:p-8" style="display: none;">
@@ -204,15 +218,23 @@
     </footer>
 
     <script type="module">
+        // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, addDoc, query, onSnapshot, serverTimestamp, orderBy, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        let db, auth;
-        const appId = 'bac-aymen-gharbiz'; 
-        let currentUserStream = ''; // Store user's stream globally
-        let unsubscribeResultsListener = null; // To manage the listener
+        // --- Start of Single Script Block ---
 
+        // Global Variables
+        let db, auth;
+        let statsChartInstance = null;
+        let finalBacAvg = 0;
+        let currentUserStream = '';
+        let unsubscribeResultsListener = null;
+        let isInitialLoad = true;
+
+        // Constants
+        const appId = 'bac-aymen-gharbiz'; 
         const firebaseConfig = {
           apiKey: "AIzaSyCW-rqhrMxBnXi1bvEMbttat7oJnLlDNAM",
           authDomain: "bac-calc-9f253.firebaseapp.com",
@@ -222,20 +244,24 @@
           appId: "1:630028998290:web:8307d8b9b283458781784b",
           measurementId: "G-JB9KRX72KD"
         };
-        
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            await signInAnonymously(auth);
-            console.log('User signed in anonymously.');
-            listenForParticipants();
-            setupResultsListener(); // Setup listener for the filter
-        } catch (e) {
-            console.error("Firebase initialization failed:", e);
-            document.getElementById('statsCard').style.display = 'none';
-        }
+        const subjectsByStream = {
+            'رياضيات': ['note-maths', 'note-physique', 'note-fr', 'note-en'],
+            'علوم تجريبية': ['note-svt', 'note-physique', 'note-maths', 'note-fr'],
+            'تقنية': ['note-tech', 'note-maths', 'note-physique', 'note-en'],
+            'اقتصاد وتصرف': ['note-eco', 'note-gestion', 'note-maths', 'note-fr'],
+            'آداب': ['note-arabe', 'note-philo', 'note-fr', 'note-en'],
+            'علوم إعلامية': ['note-algo', 'note-tic', 'note-maths', 'note-en'],
+            'رياضة': ['note-sport', 'note-svt', 'note-fr', 'note-philo']
+        };
+        const allSubjects = {
+            'note-maths': 'الرياضيات', 'note-physique': 'الفيزياء', 'note-svt': 'علوم الحياة والأرض',
+            'note-fr': 'الفرنسية', 'note-en': 'الإنقليزية', 'note-tech': 'المادة التقنية',
+            'note-eco': 'الاقتصاد', 'note-gestion': 'التصرف', 'note-arabe': 'العربية',
+            'note-philo': 'الفلسفة', 'note-algo': 'الخوارزميات', 'note-tic': 'تكنولوجيا المعلومات',
+            'note-sport': 'الرياضة'
+        };
 
+        // --- Firebase Functions ---
         async function saveUserSubmission(fullName, stream) {
             if (!db) return;
             try {
@@ -244,16 +270,20 @@
             } catch (error) { console.error("Error adding submission: ", error); }
         }
 
-        window.saveResultData = async function(resultStatus) {
+        async function saveResultData(resultStatus, average) {
             if (!db) return;
             const normalizedStatus = resultStatus.includes('pass') ? 'pass' : (resultStatus.includes('fail') ? 'fail' : 'retake');
             try {
                 const resultsCol = collection(db, `artifacts/${appId}/public/data/results`);
-                await addDoc(resultsCol, { result: normalizedStatus, stream: currentUserStream, timestamp: serverTimestamp() });
+                await addDoc(resultsCol, { 
+                    result: normalizedStatus, 
+                    stream: currentUserStream, 
+                    average: average,
+                    timestamp: serverTimestamp() 
+                });
             } catch (error) { console.error("Error saving result: ", error); }
         };
         
-        let isInitialLoad = true;
         function listenForParticipants() {
             if (!db) return;
             const submissionsCol = collection(db, `artifacts/${appId}/public/data/submissions`);
@@ -272,7 +302,7 @@
                         const data = change.doc.data();
                         const docTimestamp = data.timestamp?.toDate().getTime();
                         if (!docTimestamp || (new Date().getTime() - docTimestamp) < 30000) {
-                             window.showParticipantNotification(data.name, data.stream);
+                             showParticipantNotification(data.name, data.stream);
                         }
                     }
                 });
@@ -285,12 +315,12 @@
                 const selectedStream = filterElement.value;
                 listenForResults(selectedStream);
             });
-            listenForResults('all'); // Initial load
+            listenForResults('all');
         }
 
         function listenForResults(streamFilter) {
             if (unsubscribeResultsListener) {
-                unsubscribeResultsListener(); // Detach the old listener
+                unsubscribeResultsListener(); 
             }
 
             if (!db) return;
@@ -311,310 +341,430 @@
                         case 'fail': fail++; break;
                     }
                 });
-                window.createOrUpdateChart(pass, retake, fail);
+                createOrUpdateChart(pass, retake, fail);
             });
         }
         
-        const startBtn = document.getElementById('startBtn');
-        startBtn.addEventListener('click', async () => {
-            const fullNameInput = document.getElementById('fullName');
-            const streamInput = document.getElementById('stream');
-            const nameError = document.getElementById('nameError');
-            const fullName = fullNameInput.value.trim();
-            currentUserStream = streamInput.value; // Save stream globally
-            nameError.textContent = '';
-            if (fullName === '') {
-                nameError.textContent = 'الرجاء إدخال اسمك الكامل.';
-                return;
+        // --- UI FUNCTIONS ---
+        function setupTheme() {
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const darkIcon = document.getElementById('theme-toggle-dark-icon');
+            const lightIcon = document.getElementById('theme-toggle-light-icon');
+            if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                lightIcon.classList.remove('hidden');
+            } else {
+                darkIcon.classList.remove('hidden');
             }
-            await saveUserSubmission(fullName, currentUserStream);
-            document.getElementById('welcomeMessage').textContent = `بالتوفيق يا ${fullName}!`;
-            document.getElementById('welcomePage').style.display = 'none';
-            document.getElementById('calculatorPage').style.display = 'block';
-        });
-    </script>
-
-    <script>
-    let statsChartInstance = null;
-    
-    function initializeApp() {
-        setupTheme();
-        startCountdown();
-        document.getElementById('resetBtn').addEventListener('click', resetCalculator);
-        document.getElementById('calculateReverse').addEventListener('click', calculateReverse);
-        document.getElementById('calculateMain').addEventListener('click', calculateMainSession);
-        document.getElementById('calculateRetake').addEventListener('click', calculateRetakeSession);
-    }
-    
-    function setupTheme() {
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const darkIcon = document.getElementById('theme-toggle-dark-icon');
-        const lightIcon = document.getElementById('theme-toggle-light-icon');
-        if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-            lightIcon.classList.remove('hidden');
-        } else {
-            darkIcon.classList.remove('hidden');
+            themeToggleBtn.addEventListener('click', () => {
+                darkIcon.classList.toggle('hidden');
+                lightIcon.classList.toggle('hidden');
+                document.documentElement.classList.toggle('dark');
+                localStorage.setItem('color-theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            });
         }
-        themeToggleBtn.addEventListener('click', () => {
-            darkIcon.classList.toggle('hidden');
-            lightIcon.classList.toggle('hidden');
-            document.documentElement.classList.toggle('dark');
-            localStorage.setItem('color-theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-        });
-    }
 
-    function startCountdown() {
-        const daysEl = document.getElementById('days'), hoursEl = document.getElementById('hours'), minutesEl = document.getElementById('minutes'), secondsEl = document.getElementById('seconds');
-        const now = new Date();
-        const resultsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3, 8, 0, 0).getTime();
-        const interval = setInterval(() => {
-            const distance = resultsDate - new Date().getTime();
-            if (distance < 0) {
-                clearInterval(interval);
-                document.getElementById('countdown').innerHTML = "<div class='text-lg font-bold text-green-600'>النتائج ظهرت! بالتوفيق للجميع!</div>";
-                return;
-            }
-            daysEl.innerText = Math.floor(distance / 86400000).toString().padStart(2, '0');
-            hoursEl.innerText = Math.floor((distance % 86400000) / 3600000).toString().padStart(2, '0');
-            minutesEl.innerText = Math.floor((distance % 3600000) / 60000).toString().padStart(2, '0');
-            secondsEl.innerText = Math.floor((distance % 60000) / 1000).toString().padStart(2, '0');
-        }, 1000);
-    }
-
-    function resetCalculator() {
-        document.getElementById('welcomePage').style.display = 'block';
-        document.getElementById('calculatorPage').style.display = 'none';
-        document.querySelectorAll('input').forEach(input => input.value = '');
-        document.querySelectorAll('[id$="Result"], [id$="retakeSessionCard"]').forEach(el => el.style.display = 'none');
-    }
-
-    window.showParticipantNotification = function(name, stream) {
-        const container = document.getElementById('liveParticipantsContainer');
-        if (!container) return;
-
-        const toastId = `toast-${Date.now()}`;
-        const toast = document.createElement('div');
-        toast.id = toastId;
-        toast.className = 'participant-toast p-3 rounded-lg shadow-lg bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-600 flex items-center space-x-3 space-x-reverse';
-        
-        toast.innerHTML = `
-            <div class="text-purple-500">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
-            </div>
-            <div>
-                <p class="font-bold text-sm">${name}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">انضم للتو من شعبة ${stream}</p>
-            </div>
-        `;
-
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            const elementToRemove = document.getElementById(toastId);
-            if (elementToRemove) {
-                elementToRemove.remove();
-            }
-        }, 5000);
-    }
-
-    window.createOrUpdateChart = function(pass, retake, fail) {
-        const ctx = document.getElementById('statsChart').getContext('2d');
-        const data = {
-            labels: ['ناجح', 'مراقبة', 'مرفوض'],
-            datasets: [{
-                data: [pass, retake, fail],
-                backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
-                borderColor: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
-                borderWidth: 2,
-                hoverOffset: 4
-            }]
-        };
-        if (statsChartInstance) {
-            statsChartInstance.data.datasets[0].data = [pass, retake, fail];
-            statsChartInstance.update();
-        } else {
-            statsChartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: data,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'bottom', labels: { color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#1f2937', font: { family: "'Cairo', sans-serif" } } },
-                        tooltip: { bodyFont: { family: "'Cairo', sans-serif" }, titleFont: { family: "'Cairo', sans-serif" } }
-                    },
-                    cutout: '70%'
+        function startCountdown() {
+            const daysEl = document.getElementById('days'), hoursEl = document.getElementById('hours'), minutesEl = document.getElementById('minutes'), secondsEl = document.getElementById('seconds');
+            const resultsDate = new Date(2025, 5, 22, 8, 0, 0).getTime();
+            const interval = setInterval(() => {
+                const distance = resultsDate - new Date().getTime();
+                if (distance < 0) {
+                    clearInterval(interval);
+                    document.getElementById('countdown').innerHTML = "<div class='text-lg font-bold text-green-600'>النتائج ظهرت! بالتوفيق للجميع!</div>";
+                    return;
                 }
+                daysEl.innerText = Math.floor(distance / 86400000).toString().padStart(2, '0');
+                hoursEl.innerText = Math.floor((distance % 86400000) / 3600000).toString().padStart(2, '0');
+                minutesEl.innerText = Math.floor((distance % 3600000) / 60000).toString().padStart(2, '0');
+                secondsEl.innerText = Math.floor((distance % 60000) / 1000).toString().padStart(2, '0');
+            }, 1000);
+        }
+
+        function resetCalculator() {
+            localStorage.removeItem('bacUser');
+            document.getElementById('welcomePage').style.display = 'block';
+            document.getElementById('calculatorPage').style.display = 'none';
+            document.querySelectorAll('input').forEach(input => input.value = '');
+            document.querySelectorAll('[id$="Result"], [id$="retakeSessionCard"], #scoreCalculatorCard').forEach(el => el.style.display = 'none');
+        }
+
+        function showParticipantNotification(name, stream) {
+            const container = document.getElementById('liveParticipantsContainer');
+            if (!container) return;
+
+            const toastId = `toast-${Date.now()}`;
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = 'participant-toast p-3 rounded-lg shadow-lg bg-white dark:bg-gray-800 border border-purple-200 dark:border-purple-600 flex items-center space-x-3 space-x-reverse';
+            
+            toast.innerHTML = `
+                <div class="text-purple-500">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                </div>
+                <div>
+                    <p class="font-bold text-sm">${name}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">انضم للتو من شعبة ${stream}</p>
+                </div>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                const elementToRemove = document.getElementById(toastId);
+                if (elementToRemove) {
+                    elementToRemove.remove();
+                }
+            }, 5000);
+        }
+
+        function createOrUpdateChart(pass, retake, fail) {
+            const ctx = document.getElementById('statsChart').getContext('2d');
+            const data = {
+                labels: ['ناجح', 'مراقبة', 'مرفوض'],
+                datasets: [{
+                    data: [pass, retake, fail],
+                    backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                    borderColor: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff',
+                    borderWidth: 2,
+                    hoverOffset: 4
+                }]
+            };
+            if (statsChartInstance) {
+                statsChartInstance.data.datasets[0].data = [pass, retake, fail];
+                statsChartInstance.update();
+            } else {
+                statsChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: data,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#1f2937', font: { family: "'Cairo', sans-serif" } } },
+                            tooltip: { bodyFont: { family: "'Cairo', sans-serif" }, titleFont: { family: "'Cairo', sans-serif" } }
+                        },
+                        cutout: '70%'
+                    }
+                });
+            }
+        }
+        
+        function calculateMainSession() {
+            if (!validateInput(document.getElementById('examAvg'), document.getElementById('examAvgError'))) return;
+            const annualAvg = parseFloat(document.getElementById('annualAvg').value) || 0;
+            const examAvg = parseFloat(document.getElementById('examAvg').value);
+            
+            saveAveragesToLocalStorage(annualAvg, examAvg);
+
+            let finalAvg, calculationMethod = '', difference = Math.abs(examAvg - annualAvg);
+            if (annualAvg > 0 && difference <= 3) {
+                const formula1 = (examAvg * 0.8) + (annualAvg * 0.2);
+                finalAvg = Math.max(formula1, examAvg);
+                calculationMethod = `<p class="text-sm">تم احتساب معدلك السنوي.</p>`;
+            } else {
+                finalAvg = examAvg;
+                if(annualAvg > 0) calculationMethod = `<p class="text-sm">تم اعتماد معدل الامتحان فقط لأن الفارق يتجاوز 3 نقاط.</p>`;
+            }
+            
+            finalBacAvg = finalAvg;
+            displayMainResult(finalAvg, calculationMethod);
+        }
+
+        function displayMainResult(avg, method) {
+            let status, resultText, bgColor, textColor, borderColor;
+            const mainResultDiv = document.getElementById('mainResult'), retakeSessionCard = document.getElementById('retakeSessionCard'), scoreCard = document.getElementById('scoreCalculatorCard');
+            mainResultDiv.style.display = 'block';
+            retakeSessionCard.style.display = 'none';
+
+            if (avg >= 10) {
+                status = 'pass';
+                if (avg >= 18) { resultText = 'ممتاز 🏅'; } 
+                else if (avg >= 16) { resultText = 'حسن جداً 🏆'; } 
+                else if (avg >= 14) { resultText = 'حسن 🎖️'; } 
+                else if (avg >= 12) { resultText = 'مقبول 🏵️'; } 
+                else { resultText = 'ناجح'; }
+                bgColor = 'bg-green-100 dark:bg-green-900/50'; textColor = 'text-green-800 dark:text-green-300'; borderColor = 'border-green-400 dark:border-green-700';
+                setupScoreCalculator();
+                scoreCard.style.display = 'block';
+            } else if (avg >= 7) { 
+                status = 'retake'; resultText = 'مؤجل للمراقبة'; bgColor = 'bg-orange-100 dark:bg-orange-900/50'; textColor = 'text-orange-800 dark:text-orange-300'; borderColor = 'border-orange-400 dark:border-orange-700';
+                retakeSessionCard.style.display = 'block';
+                document.getElementById('mainFinalAvgForRetake').value = avg.toFixed(2);
+                scoreCard.style.display = 'none';
+            } else { 
+                status = 'fail'; resultText = 'راسب'; bgColor = 'bg-red-100 dark:bg-red-900/50'; textColor = 'text-red-800 dark:text-red-300'; borderColor = 'border-red-400 dark:border-red-700'; 
+                scoreCard.style.display = 'none';
+            }
+            
+            saveResultData(status, avg);
+
+            const adviceHTML = getAdvice(status);
+            const resultId = `result-main-${Date.now()}`;
+            mainResultDiv.innerHTML = `<div id="${resultId}" class="result-box ${bgColor} ${textColor} border ${borderColor}">
+                <h3 class="text-lg font-bold mb-2">النتيجة: ${resultText}</h3><p class="text-3xl font-bold">${avg.toFixed(2)}</p>
+                <div class="border-t border-dashed my-3"></div>${method}${adviceHTML}
+                <div class="mt-4 flex justify-center items-center space-x-2 space-x-reverse">
+                    <button id="saveBtnMain" class="btn btn-sm bg-gray-500 hover:bg-gray-600">حفظ 🖼️</button>
+                    <button id="shareBtnMain" class="btn btn-sm bg-blue-600 hover:bg-blue-700 inline-flex items-center space-x-2 space-x-reverse">
+                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04C6.5 2.04 2 6.53 2 12.06c0 5.52 4.5 10.02 10 10.02s10-4.5 10-10.02C22 6.53 17.5 2.04 12 2.04zM16.5 8.25h-2.25c-.28 0-.5.22-.5.5v1.5h2.75l-.38 2.5h-2.37v6.5h-2.5V12.75h-2V10.25h2V8.5c0-1.38 1.12-2.5 2.5-2.5H16.5V8.25z"/></svg>
+                        <span>مشاركة</span>
+                    </button>
+                </div>
+            </div>`;
+            document.getElementById('saveBtnMain').addEventListener('click', () => saveResultAsImage(resultId, 'نتيجة_رئيسية'));
+            document.getElementById('shareBtnMain').addEventListener('click', shareOnFacebook);
+            mainResultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        function calculateRetakeSession() {
+            const mainFinalAvg = parseFloat(document.getElementById('mainFinalAvgForRetake').value);
+            const retakeExamAvg = parseFloat(document.getElementById('retakeExamAvg').value);
+            if(isNaN(retakeExamAvg)) return;
+            const finalAvg = (mainFinalAvg + retakeExamAvg) / 2;
+            displayRetakeResult(finalAvg, mainFinalAvg, retakeExamAvg);
+        }
+
+        function displayRetakeResult(avg, mainAvg, retakeAvg) {
+            let status, resultText, bgColor, textColor, borderColor;
+            const retakeResultDiv = document.getElementById('retakeResult');
+            const scoreCard = document.getElementById('scoreCalculatorCard');
+            retakeResultDiv.style.display = 'block';
+
+            if (avg >= 10) { 
+                status = 'pass_retake';
+                if (avg >= 18) { resultText = 'ممتاز 🏅'; } 
+                else if (avg >= 16) { resultText = 'حسن جداً 🏆'; } 
+                else if (avg >= 14) { resultText = 'حسن 🎖️'; } 
+                else if (avg >= 12) { resultText = 'مقبول 🏵️'; } 
+                else { resultText = 'ناجح في المراقبة'; }
+                bgColor = 'bg-green-100 dark:bg-green-900/50'; textColor = 'text-green-800 dark:text-green-300'; borderColor = 'border-green-400 dark:border-green-700';
+                finalBacAvg = avg; 
+                setupScoreCalculator();
+                scoreCard.style.display = 'block';
+            } else { 
+                status = 'fail_retake'; resultText = 'راسب بعد المراقبة'; bgColor = 'bg-red-100 dark:bg-red-900/50'; textColor = 'text-red-800 dark:text-red-300'; borderColor = 'border-red-400 dark:border-red-700'; 
+                scoreCard.style.display = 'none';
+            }
+            
+            saveResultData(status, avg);
+
+            const adviceHTML = getAdvice(status);
+            const resultId = `result-retake-${Date.now()}`;
+            retakeResultDiv.innerHTML = `<div id="${resultId}" class="result-box ${bgColor} ${textColor} border ${borderColor}">
+                <h3 class="text-lg font-bold mb-2">النتيجة النهائية: ${resultText}</h3>
+                <p class="text-3xl font-bold">${avg.toFixed(2)}</p>
+                <div class="border-t border-dashed my-3"></div><p class="text-sm">(${mainAvg.toFixed(2)} + ${retakeAvg.toFixed(2)}) / 2</p>${adviceHTML}
+                <div class="mt-4 flex justify-center items-center space-x-2 space-x-reverse">
+                    <button id="saveBtnRetake" class="btn btn-sm bg-gray-500 hover:bg-gray-600">حفظ 🖼️</button>
+                    <button id="shareBtnRetake" class="btn btn-sm bg-blue-600 hover:bg-blue-700 inline-flex items-center space-x-2 space-x-reverse">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04C6.5 2.04 2 6.53 2 12.06c0 5.52 4.5 10.02 10 10.02s10-4.5 10-10.02C22 6.53 17.5 2.04 12 2.04zM16.5 8.25h-2.25c-.28 0-.5.22-.5.5v1.5h2.75l-.38 2.5h-2.37v6.5h-2.5V12.75h-2V10.25h2V8.5c0-1.38 1.12-2.5 2.5-2.5H16.5V8.25z"/></svg>
+                        <span>مشاركة</span>
+                    </button>
+                </div>
+            </div>`;
+            document.getElementById('saveBtnRetake').addEventListener('click', () => saveResultAsImage(resultId, 'نتيجة_مراقبة'));
+            document.getElementById('shareBtnRetake').addEventListener('click', shareOnFacebook);
+            retakeResultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        function getAdvice(status) {
+            let title, listItems;
+            switch(status) {
+                case 'pass': case 'pass_retake': title = "🎉 تهانينا! خطواتك القادمة:"; listItems = ["البحث عن التوجيه الجامعي.", "الاحتفال بإنجازك.", "تجهيز أوراق التسجيل."]; break;
+                case 'retake': title = "💪 لا تستسلم! لديك فرصة:"; listItems = ["حدد نقاط ضعفك.", "ضع خطة مراجعة.", "خذ قسطاً من الراحة."]; break;
+                default: title = "❤️ لا بأس، هذه ليست النهاية:"; listItems = ["خذ وقتك لاستيعاب الأمر.", "حلل أسباب الإخفاق.", "استكشف الخيارات المتاحة."]; break;
+            }
+            return `<div class="advice-box"><h4 class="font-bold mb-2">${title}</h4><ul class="list-disc list-inside space-y-1 text-sm">${listItems.map(item => `<li>${item}</li>`).join('')}</ul></div>`;
+        }
+
+        function validateInput(input, errorElement) {
+            const value = parseFloat(input.value);
+            errorElement.textContent = '';
+            if (input.value === '' || isNaN(value)) { errorElement.textContent = 'الرجاء إدخال قيمة عددية.'; return false; }
+            if (value < 0 || value > 20) { errorElement.textContent = 'يجب أن يكون المعدل بين 0 و 20.'; return false; }
+            return true;
+        }
+        
+        function saveResultAsImage(elementId, fileName) {
+            const element = document.getElementById(elementId);
+            if(!element) return;
+            
+            const shareButton = element.querySelector('#shareBtnMain, #shareBtnRetake');
+            if(shareButton) shareButton.style.display = 'none';
+
+            element.style.boxShadow = 'none';
+            html2canvas(element, { backgroundColor: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff', scale: 2 })
+            .then(canvas => {
+                const link = document.createElement('a');
+                link.download = `${fileName}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                element.style.boxShadow = '';
+                if(shareButton) shareButton.style.display = 'inline-flex';
             });
         }
-    }
-    
-    function calculateReverse() {
-        const annualAvg = parseFloat(document.getElementById('revAnnualAvg').value) || 0;
-        const targetAvg = parseFloat(document.getElementById('revTargetAvg').value);
-        const resultDiv = document.getElementById('reverseResult');
-        if (isNaN(targetAvg)) {
-            resultDiv.innerHTML = `<div class="result-box bg-red-100 text-red-800 border-red-400">الرجاء إدخال هدفك.</div>`;
+
+        function shareOnFacebook() {
+            const siteUrl = "https://resultat-bac.netlify.app/"; 
+            const url = encodeURIComponent(siteUrl);
+            const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=اكتشف نتيجتك المحتملة في البكالوريا مع هذه الحاسبة الرائعة!`;
+            window.open(shareUrl, 'sharer', 'toolbar=0,status=0,width=626,height=436');
+        }
+
+        function setupScoreCalculator() {
+            const formContainer = document.getElementById('scoreNotesForm');
+            formContainer.innerHTML = '';
+            const userStream = JSON.parse(localStorage.getItem('bacUser'))?.stream || 'رياضيات';
+            const requiredSubjects = subjectsByStream[userStream];
+            
+            requiredSubjects.forEach(subjectId => {
+                const subjectName = allSubjects[subjectId];
+                const inputGroup = document.createElement('div');
+                inputGroup.innerHTML = `
+                    <label for="${subjectId}" class="block mb-1 text-sm font-semibold">${subjectName}</label>
+                    <input type="number" id="${subjectId}" class="input-field score-note" placeholder="أدخل المعدل" min="0" max="20" step="0.01">
+                `;
+                formContainer.appendChild(inputGroup);
+            });
+        }
+
+        function calculateScore() {
+            const notes = {};
+            const inputs = document.querySelectorAll('.score-note');
+            let allValid = true;
+            inputs.forEach(input => {
+                if (input.value === '' || isNaN(parseFloat(input.value))) allValid = false;
+                notes[input.id] = parseFloat(input.value) || 0;
+            });
+
+            if (!allValid) {
+                document.getElementById('scoreResult').innerHTML = `<p class="text-red-500 text-center">الرجاء إدخال جميع المعدلات المطلوبة.</p>`;
+                return;
+            }
+
+            const userStream = JSON.parse(localStorage.getItem('bacUser'))?.stream || 'رياضيات';
+            let scoresHTML = '<ul class="space-y-3">';
+            
+            if (userStream === 'علوم تجريبية') {
+                const scoreMed = finalBacAvg + notes['note-svt'] + notes['note-physique'];
+                scoresHTML += `<li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg flex justify-between items-center"><span>سكور الطب والصيدلة (تقديري):</span> <span class="font-bold text-lg text-green-600">${scoreMed.toFixed(2)}</span></li>`;
+            }
+            if (userStream === 'رياضيات' || userStream === 'تقنية') {
+                const scorePrepa = (finalBacAvg * 2) + (notes['note-maths'] * 2) + (notes['note-physique'] * 1.5);
+                scoresHTML += `<li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg flex justify-between items-center"><span>سكور الشعب التحضيرية (تقديري):</span> <span class="font-bold text-lg text-green-600">${scorePrepa.toFixed(2)}</span></li>`;
+            }
+            if (userStream === 'اقتصاد وتصرف') {
+                const scoreIHEC = (finalBacAvg * 1.5) + notes['note-eco'] + notes['note-gestion'] + notes['note-maths'];
+                scoresHTML += `<li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg flex justify-between items-center"><span>سكور إدارة الأعمال (تقديري):</span> <span class="font-bold text-lg text-green-600">${scoreIHEC.toFixed(2)}</span></li>`;
+            }
+            if (userStream === 'علوم إعلامية') {
+                const scoreInfo = finalBacAvg + (notes['note-algo'] * 2) + (notes['note-maths'] * 1.5) + notes['note-en'];
+                scoresHTML += `<li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg flex justify-between items-center"><span>سكور هندسة الإعلامية (تقديري):</span> <span class="font-bold text-lg text-green-600">${scoreInfo.toFixed(2)}</span></li>`;
+            }
+            
+            scoresHTML += '</ul><p class="text-center text-xs text-gray-400 mt-4">* هذه السكورات هي مجرد تقديرات مبنية على صيغ عامة وقد تختلف عن الصيغ الرسمية.</p>';
+            document.getElementById('scoreResult').innerHTML = scoresHTML;
+            document.getElementById('scoreResult').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        function calculateReverse() {
+            const annualAvg = parseFloat(document.getElementById('revAnnualAvg').value) || 0;
+            const targetAvg = parseFloat(document.getElementById('revTargetAvg').value);
+            const resultDiv = document.getElementById('reverseResult');
+            if (isNaN(targetAvg)) {
+                resultDiv.innerHTML = `<div class="result-box bg-red-100 text-red-800 border-red-400">الرجاء إدخال هدفك.</div>`;
+                resultDiv.style.display = 'block';
+                resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            let requiredAvg = (targetAvg - (annualAvg * 0.2)) / 0.8;
+            let message = `باحتساب معدلك السنوي (${annualAvg.toFixed(2)}), يلزمك تجيب في الباك:`;
+            if (annualAvg === 0) { requiredAvg = targetAvg; message = "بما أنو ماعندكش معدل سنوي، يلزمك تجيب في الباك:" }
+            let resultHTML = '';
+            if (requiredAvg > 20) {
+                resultHTML = `<div class="result-box bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border border-red-400 dark:border-red-700"><h3 class="text-lg font-bold mb-2">الهدف صعيب شوية</h3><p>${message}</p><p class="text-2xl font-bold">${requiredAvg.toFixed(2)}</p><p class="text-sm mt-2">المعدل هذا فوق 20، حاول راجع هدفك.</p></div>`;
+            } else if (requiredAvg <= 0) {
+                resultHTML = `<div class="result-box bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border border-green-400 dark:border-green-700"><h3 class="text-lg font-bold mb-2">الهدف مضمون!</h3><p>${message}</p><p class="text-2xl font-bold">${requiredAvg.toFixed(2)}</p><p class="text-sm mt-2">عملياً، هدفك مضمون. ربي يوفق!</p></div>`;
+            } else {
+                resultHTML = `<div class="result-box bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border border-green-400 dark:border-green-700"><h3 class="text-lg font-bold mb-2">باش توصل لـ (${targetAvg.toFixed(2)})</h3><p>${message}</p><p class="text-2xl font-bold">${requiredAvg.toFixed(2)}</p><p class="text-sm mt-2">هذا هو المعدل اللازم في امتحان البكالوريا.</p></div>`;
+            }
+            resultDiv.innerHTML = resultHTML;
             resultDiv.style.display = 'block';
-            return;
-        }
-        let requiredAvg = (targetAvg - (annualAvg * 0.2)) / 0.8;
-        let message = `باحتساب معدلك السنوي (${annualAvg.toFixed(2)}), ستحتاج إلى:`;
-        if (annualAvg === 0) { requiredAvg = targetAvg; message = "بدون احتساب المعدل السنوي، ستحتاج إلى:" }
-        let resultHTML = '';
-        if (requiredAvg > 20) {
-            resultHTML = `<div class="result-box bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border border-red-400 dark:border-red-700"><h3 class="text-lg font-bold mb-2">الهدف غير ممكن</h3><p>${message}</p><p class="text-2xl font-bold">${requiredAvg.toFixed(2)}</p></div>`;
-        } else {
-            resultHTML = `<div class="result-box bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border border-green-400 dark:border-green-700"><h3 class="text-lg font-bold mb-2">لتحقيق هدفك (${targetAvg.toFixed(2)})</h3><p>${message}</p><p class="text-2xl font-bold">${requiredAvg.toFixed(2)}</p></div>`;
-        }
-        resultDiv.innerHTML = resultHTML;
-        resultDiv.style.display = 'block';
-    }
-    
-    function calculateMainSession() {
-        if (!validateInput(document.getElementById('examAvg'), document.getElementById('examAvgError'))) return;
-        const annualAvg = parseFloat(document.getElementById('annualAvg').value) || 0;
-        const examAvg = parseFloat(document.getElementById('examAvg').value);
-        let finalAvg, calculationMethod = '', difference = Math.abs(examAvg - annualAvg);
-        if (annualAvg > 0 && difference <= 3) {
-            const formula1 = (examAvg * 0.8) + (annualAvg * 0.2);
-            finalAvg = Math.max(formula1, examAvg);
-            calculationMethod = `<p class="text-sm">تم احتساب معدلك السنوي.</p>`;
-        } else {
-            finalAvg = examAvg;
-            if(annualAvg > 0) calculationMethod = `<p class="text-sm">تم اعتماد معدل الامتحان فقط لأن الفارق يتجاوز 3 نقاط.</p>`;
-        }
-        displayMainResult(finalAvg, calculationMethod);
-    }
-    
-    function calculateRetakeSession() {
-        const mainFinalAvg = parseFloat(document.getElementById('mainFinalAvgForRetake').value);
-        const retakeExamAvg = parseFloat(document.getElementById('retakeExamAvg').value);
-        if(isNaN(retakeExamAvg)) return;
-        displayRetakeResult((mainFinalAvg + retakeExamAvg) / 2, mainFinalAvg, retakeExamAvg);
-    }
-
-    function displayMainResult(avg, method) {
-        let status, resultText, bgColor, textColor, borderColor;
-        const mainResultDiv = document.getElementById('mainResult'), retakeSessionCard = document.getElementById('retakeSessionCard');
-        mainResultDiv.style.display = 'block';
-        retakeSessionCard.style.display = 'none';
-
-        if (avg >= 10) {
-            status = 'pass';
-            if (avg >= 18) { resultText = 'ممتاز 🏅';
-            } else if (avg >= 16) { resultText = 'حسن جداً 🏆';
-            } else if (avg >= 14) { resultText = 'حسن 🎖️';
-            } else if (avg >= 12) { resultText = 'مقبول 🏵️';
-            } else { resultText = 'ناجح'; }
-            bgColor = 'bg-green-100 dark:bg-green-900/50'; textColor = 'text-green-800 dark:text-green-300'; borderColor = 'border-green-400 dark:border-green-700';
-        } else if (avg >= 7) { 
-            status = 'retake'; resultText = 'مؤجل للمراقبة'; bgColor = 'bg-orange-100 dark:bg-orange-900/50'; textColor = 'text-orange-800 dark:text-orange-300'; borderColor = 'border-orange-400 dark:border-orange-700';
-            retakeSessionCard.style.display = 'block';
-            document.getElementById('mainFinalAvgForRetake').value = avg.toFixed(2);
-        } else { 
-            status = 'fail'; resultText = 'راسب'; bgColor = 'bg-red-100 dark:bg-red-900/50'; textColor = 'text-red-800 dark:text-red-300'; borderColor = 'border-red-400 dark:border-red-700'; 
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         
-        if (window.saveResultData) window.saveResultData(status);
+        // --- LOCAL STORAGE FUNCTIONS ---
+        function loadUserFromLocalStorage() {
+            const user = JSON.parse(localStorage.getItem('bacUser'));
+            if (user) {
+                document.getElementById('fullName').value = user.name || '';
+                document.getElementById('stream').value = user.stream || 'رياضيات';
+                document.getElementById('annualAvg').value = user.annualAvg || '';
+                document.getElementById('examAvg').value = user.examAvg || '';
+            }
+        }
 
-        const adviceHTML = getAdvice(status);
-        const resultId = `result-main-${Date.now()}`;
-        mainResultDiv.innerHTML = `<div id="${resultId}" class="result-box ${bgColor} ${textColor} border ${borderColor}">
-            <h3 class="text-lg font-bold mb-2">النتيجة: ${resultText}</h3>
-            <p class="text-3xl font-bold">${avg.toFixed(2)}</p>
-            <div class="border-t border-dashed my-3"></div>${method}${adviceHTML}
-            <div class="mt-4 flex justify-center items-center space-x-2 space-x-reverse">
-                <button onclick="saveResultAsImage('${resultId}', 'نتيجة_رئيسية')" class="btn btn-sm bg-gray-500 hover:bg-gray-600">حفظ 🖼️</button>
-                <button onclick="window.shareOnFacebook()" class="btn btn-sm bg-blue-600 hover:bg-blue-700 inline-flex items-center space-x-2 space-x-reverse">
-                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04C6.5 2.04 2 6.53 2 12.06c0 5.52 4.5 10.02 10 10.02s10-4.5 10-10.02C22 6.53 17.5 2.04 12 2.04zM16.5 8.25h-2.25c-.28 0-.5.22-.5.5v1.5h2.75l-.38 2.5h-2.37v6.5h-2.5V12.75h-2V10.25h2V8.5c0-1.38 1.12-2.5 2.5-2.5H16.5V8.25z"/></svg>
-                    <span>مشاركة</span>
-                </button>
-            </div>
-        </div>`;
-    }
-    
-    function displayRetakeResult(avg, mainAvg, retakeAvg) {
-        let status, resultText, bgColor, textColor, borderColor;
-        const retakeResultDiv = document.getElementById('retakeResult');
-        retakeResultDiv.style.display = 'block';
-
-        if (avg >= 10) { 
-            status = 'pass_retake';
-            if (avg >= 18) { resultText = 'ممتاز 🏅';
-            } else if (avg >= 16) { resultText = 'حسن جداً 🏆';
-            } else if (avg >= 14) { resultText = 'حسن 🎖️';
-            } else if (avg >= 12) { resultText = 'مقبول 🏵️';
-            } else { resultText = 'ناجح في المراقبة'; }
-             bgColor = 'bg-green-100 dark:bg-green-900/50'; textColor = 'text-green-800 dark:text-green-300'; borderColor = 'border-green-400 dark:border-green-700';
-        } else { 
-            status = 'fail_retake'; resultText = 'راسب بعد المراقبة'; bgColor = 'bg-red-100 dark:bg-red-900/50'; textColor = 'text-red-800 dark:text-red-300'; borderColor = 'border-red-400 dark:border-red-700'; 
+        function saveUserToLocalStorage(name, stream) {
+            let user = JSON.parse(localStorage.getItem('bacUser')) || {};
+            user.name = name;
+            user.stream = stream;
+            localStorage.setItem('bacUser', JSON.stringify(user));
         }
         
-        if (window.saveResultData) window.saveResultData(status);
-
-        const adviceHTML = getAdvice(status);
-        const resultId = `result-retake-${Date.now()}`;
-        retakeResultDiv.innerHTML = `<div id="${resultId}" class="result-box ${bgColor} ${textColor} border ${borderColor}">
-            <h3 class="text-lg font-bold mb-2">النتيجة النهائية: ${resultText}</h3>
-            <p class="text-3xl font-bold">${avg.toFixed(2)}</p>
-            <div class="border-t border-dashed my-3"></div><p class="text-sm">(${mainAvg.toFixed(2)} + ${retakeAvg.toFixed(2)}) / 2</p>${adviceHTML}
-            <div class="mt-4 flex justify-center items-center space-x-2 space-x-reverse">
-                <button onclick="saveResultAsImage('${resultId}', 'نتيجة_مراقبة')" class="btn btn-sm bg-gray-500 hover:bg-gray-600">حفظ 🖼️</button>
-                <button onclick="window.shareOnFacebook()" class="btn btn-sm bg-blue-600 hover:bg-blue-700 inline-flex items-center space-x-2 space-x-reverse">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.04C6.5 2.04 2 6.53 2 12.06c0 5.52 4.5 10.02 10 10.02s10-4.5 10-10.02C22 6.53 17.5 2.04 12 2.04zM16.5 8.25h-2.25c-.28 0-.5.22-.5.5v1.5h2.75l-.38 2.5h-2.37v6.5h-2.5V12.75h-2V10.25h2V8.5c0-1.38 1.12-2.5 2.5-2.5H16.5V8.25z"/></svg>
-                    <span>مشاركة</span>
-                </button>
-            </div>
-        </div>`;
-    }
-    
-    function getAdvice(status) {
-        let title, listItems;
-        switch(status) {
-            case 'pass': case 'pass_retake': title = "🎉 تهانينا! خطواتك القادمة:"; listItems = ["البحث عن التوجيه الجامعي.", "الاحتفال بإنجازك.", "تجهيز أوراق التسجيل."]; break;
-            case 'retake': title = "💪 لا تستسلم! لديك فرصة:"; listItems = ["حدد نقاط ضعفك.", "ضع خطة مراجعة.", "خذ قسطاً من الراحة."]; break;
-            default: title = "❤️ لا بأس، هذه ليست النهاية:"; listItems = ["خذ وقتك لاستيعاب الأمر.", "حلل أسباب الإخفاق.", "استكشف الخيارات المتاحة."]; break;
+        function saveAveragesToLocalStorage(annual, exam) {
+            let user = JSON.parse(localStorage.getItem('bacUser')) || {};
+            user.annualAvg = annual;
+            user.examAvg = exam;
+            localStorage.setItem('bacUser', JSON.stringify(user));
         }
-        return `<div class="advice-box"><h4 class="font-bold mb-2">${title}</h4><ul class="list-disc list-inside space-y-1 text-sm">${listItems.map(item => `<li>${item}</li>`).join('')}</ul></div>`;
-    }
 
-    function validateInput(input, errorElement) {
-        const value = parseFloat(input.value);
-        errorElement.textContent = '';
-        if (input.value === '' || isNaN(value)) { errorElement.textContent = 'الرجاء إدخال قيمة عددية.'; return false; }
-        if (value < 0 || value > 20) { errorElement.textContent = 'يجب أن يكون المعدل بين 0 و 20.'; return false; }
-        return true;
-    }
-    
-    window.saveResultAsImage = function(elementId, fileName) {
-        const element = document.getElementById(elementId);
-        if(!element) return;
-        
-        const shareButton = element.querySelector('button[onclick="window.shareOnFacebook()"]');
-        if(shareButton) shareButton.style.display = 'none';
+        // --- APP INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            (async () => {
+                try {
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    await signInAnonymously(auth);
+                    console.log('User signed in anonymously.');
+                    listenForParticipants();
+                    setupResultsListener();
+                } catch (e) {
+                    console.error("Firebase initialization failed:", e);
+                    document.getElementById('statsCard').style.display = 'none';
+                }
+            })();
 
-        element.style.boxShadow = 'none';
-        html2canvas(element, { backgroundColor: document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff', scale: 2 })
-        .then(canvas => {
-            const link = document.createElement('a');
-            link.download = `${fileName}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-            element.style.boxShadow = '';
-             if(shareButton) shareButton.style.display = 'inline-flex';
+            document.getElementById('startBtn').addEventListener('click', async () => {
+                const fullNameInput = document.getElementById('fullName');
+                const streamInput = document.getElementById('stream');
+                const nameError = document.getElementById('nameError');
+                const fullName = fullNameInput.value.trim();
+                currentUserStream = streamInput.value; 
+                nameError.textContent = '';
+                if (fullName === '') {
+                    nameError.textContent = 'الرجاء إدخال اسمك الكامل.';
+                    return;
+                }
+                saveUserToLocalStorage(fullName, currentUserStream);
+                await saveUserSubmission(fullName, currentUserStream);
+                document.getElementById('welcomeMessage').textContent = `بالتوفيق يا ${fullName}!`;
+                document.getElementById('welcomePage').style.display = 'none';
+                document.getElementById('calculatorPage').style.display = 'block';
+            });
+
+            document.getElementById('resetBtn').addEventListener('click', resetCalculator);
+            document.getElementById('calculateMain').addEventListener('click', calculateMainSession);
+            document.getElementById('calculateRetake').addEventListener('click', calculateRetakeSession);
+            document.getElementById('calculateScoreBtn').addEventListener('click', calculateScore);
+            document.getElementById('calculateReverse').addEventListener('click', calculateReverse);
+            
+            setupTheme();
+            startCountdown();
+            loadUserFromLocalStorage();
         });
-    }
-
-    window.shareOnFacebook = function() {
-        const siteUrl = "https://resultat-bac.netlify.app/"; 
-        const url = encodeURIComponent(siteUrl);
-        const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=اكتشف نتيجتك المحتملة في البكالوريا مع هذه الحاسبة الرائعة!`;
-        window.open(shareUrl, 'sharer', 'toolbar=0,status=0,width=626,height=436');
-    }
-
-    initializeApp();
     </script>
 </body>
 </html>
